@@ -20,6 +20,14 @@ class Book {
 
   /**
    *
+   * @returns {OPF.getFileByName}
+   */
+  getFile () {
+    return this.opf.getFileByName;
+  }
+
+  /**
+   *
    * @returns {string|*}
    */
   get author () {
@@ -40,14 +48,6 @@ class Book {
    */
   get contentsByFile () {
     return this.opf.contentsByFile;
-  }
-
-  /**
-   *
-   * @returns {OPF.getFileByName}
-   */
-  get getFile () {
-    return this.opf.getFileByName;
   }
 
   /**

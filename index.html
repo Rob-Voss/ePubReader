@@ -7,9 +7,6 @@
     <meta name="apple-mobile-web-app-capable" content="yes"/>
     <meta name="viewport" content="width=930, user-scalable=no"/>
 
-
-    <script type="text/javascript" src="js/ePub.js"></script>
-
     <script type="text/javascript" src="js/util/inflate.js"></script>
     <script type="text/javascript" src="js/util/sax.js"></script>
     <script type="text/javascript" src="js/util/zip.js"></script>
@@ -19,27 +16,36 @@
     <script type="text/javascript" src="js/patterns/en.js"></script>
     <script type="text/javascript" src="js/util/swipe.js"></script>
 
+    <script type="text/javascript" src="js/Book.js"></script>
+    <script type="text/javascript" src="js/ePub.js"></script>
     <script type="text/javascript" src="js/Paginator.js"></script>
     <script type="text/javascript" src="js/Section.js"></script>
     <script type="text/javascript" src="js/PageHandler.js"></script>
-    <script type="text/javascript" src="js/Renderer.js"></script>
 
     <script type="text/javascript">
-      function loadTheBook() {
-        loadBook();
+      function loadTheBook(epub) {
+        loadBook(epub);
       }
 
-      function loadBook() {
-        let epub = document.getElementById('epuburl').value,
-          pageRatio = Math.sqrt(Math.E),
+      function loadBook(epub) {
+        var pageRatio = Math.sqrt(Math.E),
           width = (window.innerWidth - 20) / 2,
           height = window.innerHeight - 20,
           pageHeight = height,
           pageWidth = width,
+          selector = document.getElementById('selector'),
           container = document.getElementById('container'),
           background = document.getElementById('backgroundDiv'),
           canvas = document.getElementById('background'),
           pages = document.getElementsByClassName('page');
+
+        var epubUrl,
+          ePubReader = new ePub();
+        if (epub.substr(0, 4) == 'http') {
+          epubUrl = epub;
+        } else {
+          epubUrl = "epubs/" + epub;
+        }
 
         if (height / pageRatio > width) {
           // We'll need to constrain the height.
@@ -58,13 +64,13 @@
 
         canvas.width = pageWidth * 2;
         canvas.height = pageHeight;
-
-        for (let i = 0, l = pages.length; i < l; i++) {
+        var l = pages.length;
+        for (var i = 0; i < l; i++) {
           pages[i].style.width = pageWidth - Math.log(22) * 8;
           pages[i].style.height = pageHeight - Math.log(22) * 10;
           pages[i].style.marginTop = '0px';
 
-          let header = document.getElementsByClassName('header')[0],
+          var header = document.getElementsByClassName('header')[0],
             headerHeight = 24 * 2, // hard coded for now, until we properly size the header...
             contents = document.getElementsByClassName('content');
           contents[0].style.height = pageHeight - (Math.log(22) * 10) - headerHeight;
@@ -73,7 +79,7 @@
         // This needs tweaking, because it should actually be done once we know
         // which font will be used as the body font for the book. This is a reasonable
         // approximation, though, and will do for now.
-        let sizerElement = document.createElement('p'),
+        var sizerElement = document.createElement('p'),
           // Rough statistical relevancy of letters [in english]. This will give us a more-accurate approximation of average line length.
           letters = "aaaaaaaabbcccddddeeeeeeeeeeeeeffgghhhhhhiiiiiiijkllllmmnnnnnnnooooooooppqrrrrrrsssssstttttttttuuuvwxyyz";
 
@@ -86,15 +92,16 @@
         document.body.appendChild(sizerElement);
 
         // Our ideal line width is 66 characters.
-        console.log('offsetwidth: ' + sizerElement.offsetWidth);
-        console.log('letters.length: ' + letters.length);
-        let idealLineWidth = (sizerElement.offsetWidth / letters.length) * 66,
+        var idealLineWidth = (sizerElement.offsetWidth / letters.length) * 66,
           measuredFontSize = document.defaultView.getComputedStyle(sizerElement, null).getPropertyValue('font-size').toString().replace('px', ''),
           pageSize = pageWidth - Math.log(22) * 8,
           // multiply the actual fontSize by our sizing ratio
           pixelFontSize = (measuredFontSize * pageSize / idealLineWidth) + 'px';
-        console.log('measured font size: ' + measuredFontSize);
-        console.log('content width: ' + pageSize);
+        console.log('offsetwidth: ' + sizerElement.offsetWidth);
+        console.log('letters.length: ' + letters.length);
+        console.log('idealLineWidth: ' + idealLineWidth);
+        console.log('measuredFontSize: ' + measuredFontSize);
+        console.log('pageWidth: ' + pageWidth);
         console.log('pixelFontSize: ' + pixelFontSize);
 
         // now that we have that, remove the sizer element.
@@ -105,16 +112,9 @@
         selector.style.display = 'none';
         container.style.display = 'block';
 
-        let epubUrl;
-        if (epub.substr(0, 4) == 'http') {
-          epubUrl = epub;
-        } else {
-          epubUrl = "epubs/" + epub;
-        }
-
-        window.ePub.open(epubUrl, (archive) => {
-          let pages,
-            book = new Book(archive),
+        var showBook = function(archive) {
+          var book = new Book(archive);
+            var pages,
             te = document.getElementById('book_title'),
             ae = document.getElementById('author_heading'),
             lc = document.getElementById('leftcontent'),
@@ -131,21 +131,22 @@
             pages = [lc, rc];
           }
 
-          let pageHandler = new PageHandler(book, pages, [ln, rn]),
+          var pageHandler = new PageHandler(book, pages, [ln, rn]),
             contents = document.getElementById('contents');
-          for (let i = 0, l = book.toc.length; i < l; i++) {
+          for (var i = 0; i < book.toc.length; i++) {
             // Sometimes navpoints aren't all covered, or they are done so in weird ways.
             // try to be liberal about things.
             if (book.toc[i] === undefined) {
               continue;
             }
 
-            let chapter = document.createElement('a'),
+            var chapter = document.createElement('a'),
               secName = book.toc[i].fileName;
             chapter.setAttribute('href', '#section=' + secName);
             chapter.textContent = book.toc[i].title;
+
             chapter.onclick = (secName) => {
-              return () => {
+              return function() {
                 pageHandler.goToSection(secName);
                 pageHandler.display();
                 contents.style.display = 'none';
@@ -185,7 +186,9 @@
             }
             pageHandler.display();
           }
-        });
+        };
+
+        ePubReader.open(epubUrl, showBook);
       }
     </script>
 </head>
