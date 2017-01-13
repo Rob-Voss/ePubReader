@@ -1,92 +1,73 @@
-class Paginator {
+/**
+ *
+ * @param fromNode
+ * @param toNode
+ * @param styleContent
+ * @constructor
+ */
+let Paginator = function(fromNode, toNode, styleContent) {
+  let delay = 0,
+    callbacks = {};
 
-  /**
-   *
-   * @param fromNode
-   * @param toNode
-   * @param styleContent
-   */
-  constructor(fromNode, toNode, styleContent) {
-    this.fromNode = fromNode;
-    this.toNode = toNode;
-    this.styleContent = styleContent;
-    this.delay = 0;
-    this.callbacks = {};
-
-    // We store realHeight here so that we don't have to fetch it in a loop.
-    this.realHeight = document.defaultView.getComputedStyle(this.toNode, null).getPropertyValue('height').replace('px', '');
-    this.maxScrollHeight = this.toNode.offsetHeight - this.realHeight;
-  }
-
-  /**
-   *
-   * @param cbk
-   * @param cbkFunc
-   */
-  addCallback(cbk, cbkFunc) {
-    if (this.callbacks[cbk]) {
-      this.callbacks[cbk].push(cbkFunc);
+  this.addCallback = function(cbk, cbkFunc) {
+    if (callbacks[cbk]) {
+      callbacks[cbk].push(cbkFunc);
     } else {
-      this.callbacks[cbk] = [cbkFunc];
+      callbacks[cbk] = [cbkFunc];
     }
-  }
+  };
 
-  /**
-   *
-   * @param cbk
-   * @param arg
-   */
-  emitCallback(cbk, arg) {
-    let cbks = this.callbacks[cbk];
+  let emitCallback = function(cbk, arg) {
+    let cbks = callbacks[cbk];
     if (!cbks) {
       return;
     }
+
     for (let i = 0, l = cbks.length; i < l; i++) {
       cbks[i](arg);
     }
+
     if (cbk === 'page') {
       // Give the browser some time to react if we've encountered a new page.
-      this.delay = 20;
+      delay = 20;
     }
-  }
+  };
 
-  /**
-   *
-   * @returns {number}
-   */
-  realScrollHeight() {
-    return this.toNode.scrollHeight - this.maxScrollHeight;
-  }
+  // We store realHeight here so that we don't have to fetch it in a loop.
+  let realHeight = document.defaultView.getComputedStyle(toNode, null).getPropertyValue('height').replace('px', ''),
+    maxScrollHeight = toNode.offsetHeight - realHeight;
 
-  /**
-   *
-   */
-  nodeHandler() {
+  let realScrollHeight = function() {
+    return toNode.scrollHeight - maxScrollHeight;
+  };
+
+  let nodeHandler = new function() {
     let running = true,
       started = false,
-      currentNode = this.toNode,
+      currentNode = toNode,
       nodeHierarchy = [];
 
     // This is a helper function to facilitate properly cloning nodes. If
     // the source documents are the same, we can use cloneNode, but if
     // not we need to use importNode.
-    let shallowClone = function() {
-      if (this.fromNode.ownerDocument === this.toNode.ownerDocument) {
-        return function(node) {
+    let shallowClone = function () {
+      let method;
+      if (fromNode.ownerDocument === toNode.ownerDocument) {
+        return function (node) {
           return node.cloneNode(false);
         }
       } else {
-        let targetDocument = this.toNode.ownerDocument;
+        let targetDocument = toNode.ownerDocument;
 
-        return function(node) {
+        return function (node) {
           return targetDocument.importNode(node, false);
         }
       }
     }();
 
-    let reset = function() {
-      this.toNode.innerHTML = '';
-      currentNode = this.toNode;
+    let reset = function () {
+      toNode.innerHTML = '';
+      currentNode = toNode;
 
       for (let i = 0, l = nodeHierarchy.length; i < l; i++) {
         let childNode = shallowClone(nodeHierarchy[i]);
@@ -96,20 +77,20 @@ class Paginator {
       }
     };
 
-    this.start = () => {
+    this.start = function () {
       // Clear target node, just in case.
       reset();
-      this.emitCallback('start');
+      emitCallback('start');
     };
 
-    this.finish = () => {
-      this.emitCallback('page', this.toNode.cloneNode(true));
-      this.emitCallback('finish');
+    this.finish = function () {
+      emitCallback('page', toNode.cloneNode(true));
+      emitCallback('finish');
       reset();
     };
 
     // Handle an opening element, e.g., <div>, <a>, etc.
-    this.startElement = (element, c) => {
+    this.startElement = function (element, c) {
       // We don't start on the first element, since the semantic here is
       // that we copy *contained* elements, not the container.
       if (!started) {
@@ -121,12 +102,13 @@ class Paginator {
       // and append it to our document.
       let newNode = shallowClone(element);
       if (newNode.nodeName === 'IMG' || newNode.nodeName === 'image') {
-        this.emitCallback('image', newNode);
+        emitCallback('image', newNode);
+
         newNode.style.height = '';
         newNode.style.width = '';
         let containerWidth = document.defaultView.getComputedStyle(currentNode, null).getPropertyValue('width').replace('px', ''),
           scale = Math.min(containerWidth / newNode.width,
-            this.realHeight / newNode.height);
+            realHeight / newNode.height);
 
         if (scale < 1) {
           newNode.height = newNode.height * scale;
@@ -139,9 +121,9 @@ class Paginator {
       // If we've exceeded our height now, it's potentially due to image(s).
       // Let's try shrinking them a little. If that doesn't work, we can
       // try moving this element to the next page.
-      if (this.realHeight < this.realScrollHeight()) {
-        let imgs = this.toNode.getElementsByTagName('IMG'),
-        origSizes = [],
+      if (realHeight < realScrollHeight()) {
+        let imgs = toNode.getElementsByTagName('IMG'),
+          origSizes = [],
           l = imgs.length,
           attempts = 0;
 
@@ -149,7 +131,7 @@ class Paginator {
           origSizes[i] = [imgs[i].height, imgs[i].width];
         }
 
-        while (attempts++ < 3 && this.realHeight < this.realScrollHeight()) {
+        while (attempts++ < 3 && realHeight < realScrollHeight()) {
           for (let i = 0; i < l; i++) {
             imgs[i].height = imgs[i].height * 0.9;
             imgs[i].width = imgs[i].width * 0.9;
@@ -157,7 +139,7 @@ class Paginator {
         }
 
         // If it didn't work, reset the image sizes.
-        if (this.realHeight < this.realScrollHeight()) {
+        if (realHeight < realScrollHeight()) {
           for (let i = 0, l = origSizes.length; i < l; i++) {
             imgs[i].height = origSizes[i][0];
             imgs[i].width = origSizes[i][1];
@@ -165,10 +147,12 @@ class Paginator {
         }
       }
 
-      if (newNode.nodeName === 'IMG' && this.realHeight < this.realScrollHeight()) {
+      if (newNode.nodeName === 'IMG' && realHeight < realScrollHeight()) {
         currentNode.removeChild(newNode);
-        this.emitCallback('page', this.toNode.cloneNode(true));
+
+        emitCallback('page', toNode.cloneNode(true));
         reset();
+
         currentNode.appendChild(newNode);
       }
 
@@ -180,17 +164,17 @@ class Paginator {
       return c();
     };
 
-    this.endElement = (element, c) => {
+    this.endElement = function (element, c) {
       currentNode = currentNode.parentNode;
       nodeHierarchy.pop();
 
       return c();
     };
 
-    this.textNode = (element, c) => {
+    this.textNode = function (element, c) {
       let rawHyphenatedText;
       try {
-        rawHyphenatedText = Hyphenator.hyphenate(decodeURIComponent(escape(element.textContent)), 'en');
+        rawHyphenatedText = Hyphenator.hyphenate(decodeURIComponent(encodeURI(element.textContent)), 'en');
       } catch (e) {
         rawHyphenatedText = Hyphenator.hyphenate(element.textContent, 'en');
       }
@@ -198,10 +182,10 @@ class Paginator {
 
       currentNode.appendChild(newTextNode);
 
-      if (this.realHeight >= this.realScrollHeight()) {
+      if (realHeight >= realScrollHeight()) {
         // We're still safe. Call the callback! Continue! Do not dawdle!
         let tmpDelay = delay;
-        this.delay = 0;
+        delay = 0;
         setTimeout(function continueFast() {
           c();
         }, tmpDelay);
@@ -217,17 +201,18 @@ class Paginator {
 
       let textNode = currentNode.lastChild,
         space = '',
-      incomingText;
+        incomingText;
       try {
-        incomingText = Hyphenator.hyphenate(decodeURIComponent(escape(element.textContent)), 'en');
+        incomingText = Hyphenator.hyphenate(decodeURIComponent(encodeURI(element.textContent)), 'en');
       } catch (e) {
         incomingText = Hyphenator.hyphenate(element.textContent, 'en');
       }
 
-      let fitText = (start, sliceLength) => {
-        if (start === incomingText.length) {
-          let tmpDelay = this.delay;
-          this.delay = 0;
+      let il = incomingText.length;
+      let fitText = function (start, sliceLength) {
+        if (start === il) {
+          let tmpDelay = delay;
+          delay = 0;
 
           setTimeout(function continueSlow() {
             c();
@@ -238,10 +223,10 @@ class Paginator {
         if (sliceLength <= 0) {
           // If we're here, it means we don't have any more text in the current
           // set of chunks that will fit on the page. Trigger a new page!
-          this.emitCallback('page', this.toNode.cloneNode(true));
+          emitCallback('page', toNode.cloneNode(true));
 
-          incomingText = incomingText.substr(start, l - start);
-          l = incomingText.length;
+          incomingText = incomingText.substr(start, il - start);
+          il = incomingText.length;
 
           // reset our destination collector to the current hierarchy.
           reset();
@@ -251,12 +236,15 @@ class Paginator {
           textNode = currentNode.lastChild;
 
           // finally, start the process again.
-          return fitText(start, l);
+          return fitText(start, il);
         }
 
         // Copy a slice of text into the text node. Hopefully it fits.
-        textNode.textContent += ((start == 0) ? '' : ' ') + incomingText.substr(start, sliceLength);
-        if (this.realHeight < this.realScrollHeight()) {
+        let testText = ((start == 0) ? '' : ' ') + incomingText.substr(start, sliceLength);
+
+        textNode.textContent += testText;
+
+        if (realHeight < realScrollHeight()) {
           // Reset the text and try again with a more conservative sliceLength.
           textNode.textContent = textNode.textContent.substr(0, sliceLength + ((start == 0) ? 0 : 1));
           fitText(start, incomingText.lastIndexOf(' ', Math.floor(sliceLength / 2)));
@@ -266,14 +254,14 @@ class Paginator {
           fitText(sliceLength, incomingText.lastIndexOf(' ', Math.floor(sliceLength / 2)));
         }
       };
-      // return fitText(0, l);
 
       let textChunks;
       try {
-        textChunks = Hyphenator.hyphenate(decodeURIComponent(escape(element.textContent)), 'en').split(/[\r\n ]/);
+        textChunks = Hyphenator.hyphenate(decodeURIComponent(encodeURI(element.textContent)), 'en').split(/[\r\n ]/);
       } catch (e) {
         textChunks = element.textContent.split(/[\r\n ]/);
       }
+
       let l = textChunks.length;
       while (l--) {
         // Copy this chunk into it, and see if we've overrun our bbox.
@@ -281,11 +269,12 @@ class Paginator {
         textNode.textContent += space + nextChunk;
         space = ' ';
 
-        if (this.realHeight < this.realScrollHeight()) {
+        if (realHeight < realScrollHeight()) {
           // Okay, we've over-stepped our boundaries, pull off that last
           // text chunk and trigger the new page callback.
           textNode.textContent = textNode.textContent.substr(0, textNode.textContent.length - nextChunk.length);
-          this.emitCallback('page', this.toNode.cloneNode(true));
+
+          emitCallback('page', toNode.cloneNode(true));
 
           // Put our next chunk back in the queue to be processed, and
           // reset our destination collector to the current hierarchy.
@@ -300,18 +289,18 @@ class Paginator {
         }
       }
 
-      let tmpDelay = this.delay;
-      this.delay = 0;
+      let tmpDelay = delay;
+      delay = 0;
+
       setTimeout(function continueSlow() {
         c();
       }, tmpDelay);
     };
-  }
+  };
 
-  /**
-   * The actual paginate function. Provided only to allow deferred starts.
-   */
-  paginate() {
-    new Sax.Parser(this.fromNode, this.nodeHandler).parse();
-  }
-}
+  // The actual paginate function. Provided only to allow deferred starts.
+  this.paginate = function () {
+    new Sax.Parser(fromNode, nodeHandler).parse();
+  };
+};
+

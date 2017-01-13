@@ -1,20 +1,114 @@
-/*
- +Page+ takes a reference to a book, from which it extracts content.
- +Page+ takes an array of +displayElement+s, which are document elements
- in which we wish to display the book, and paginates according to the size of
- the first of those elements (the assumption is that they are all sized
- equally).
-
- It then provides methods to move forwards and backwards in a book, loading
- sections as necessary so as to prevent pre-loading the entire book (which
- can be quite time consuming, and is unnecessary).
-
- Optional arguments may be supplied, including +pageNumbers+ (an array of
- elements whose textContent will be set to the current corresponding page
- number) and +chapterName+, whose textContent will be set to the current
- chapter name, if any.
+/**
+ *  The content collector. This uses the first displayElement as a template
+ *  to paginate the text. We call it from pageHandler.addSection to generate
+ *  callbacks that will return content for us when we need it.
  */
+let contentsLoader = function() {
+  let parser = new DOMParser();
 
+  return function(pageHandler, contentChunk) {
+    let getNewCollector = () => {
+      let contentCollector = pageHandler.collectorBase.cloneNode(false);
+      contentCollector.id = 'contentCollector';
+      contentCollector.style.marginTop = '10000px';
+      pageHandler.collectorBase.parentNode.appendChild(contentCollector);
+
+      return contentCollector;
+    };
+
+    return function(addPageCallback, finishCallback) {
+      let contentDoc = parser.parseFromString(contentChunk.content(), 'application/xml'),
+        contentHeader = contentDoc.getElementsByTagName('head')[0],
+        contentContainer = contentDoc.getElementsByTagName('body')[0],
+        contentCollector = getNewCollector(),
+        styleContent;
+      for (let i = 0, l = contentHeader.children.length; i < l; i++) {
+        let elem = contentHeader.children[i];
+        if (elem.nodeName == 'link' && elem.rel == 'stylesheet') {
+          if (!styleContent) {styleContent = '';}
+          let href = elem.getAttribute('href'),
+            fileR = pageHandler.book.getFile(href);
+          if (fileR) {
+            styleContent += fileR.content();
+          }
+        } else if (elem.nodeName == 'style') {
+          if (!styleContent) {styleContent = '';}
+          styleContent += elem.textContent;
+        }
+      }
+
+      if (!document.getElementById('rePublishStyle')) {
+        let ssheet = document.createElement('style');
+        ssheet.id = 'rePublishStyle';
+        ssheet.textContent = styleContent;
+        document.getElementsByTagName('head')[0].appendChild(ssheet);
+      } else {
+        let ssheet = document.getElementById('rePublishStyle');
+        ssheet.textContent = styleContent;
+      }
+
+      let paginator = new Paginator(contentContainer, contentCollector, styleContent);
+
+      paginator.addCallback('page', function (page) {
+        addPageCallback(page, contentHeader);
+      });
+
+      paginator.addCallback('finish', function () {
+        contentCollector.parentNode.removeChild(contentCollector);
+        finishCallback();
+      });
+
+      paginator.addCallback('image', function (image) {
+        let img;
+        if (image.getAttribute('src')) {
+          img = pageHandler.book.getFile(image.getAttribute('src'));
+        } else {
+          img = pageHandler.book.getFile(image.getAttribute('xlink:href'));
+        }
+
+        if (!img) {return;}
+
+        let imgContent = img.content(),
+          b64imgContent = Base64.encode(imgContent);
+
+        try {
+          let sz = getImageSize(imgContent);
+          if (sz) {
+            image.width = sz.width;
+            image.height = sz.height;
+          }
+        } catch (e) {
+          // console.log('error finding image size for ' + image.getAttribute('src'));
+        }
+
+        let imgType = img.name.substr(img.name.lastIndexOf('.') + 1, img.name.length),
+          dataUri = "data:image/" + imgType + ";base64," + b64imgContent;
+        image.setAttribute('src', dataUri);
+      });
+
+      paginator.paginate();
+    };
+  };
+}();
+
+/**
+ * Takes a reference to a book, from which it extracts content.
+ * Takes an array of displayElement, which are document elements
+ * in which we wish to display the book, and paginates according to the size of
+ * the first of those elements (the assumption is that they are all sized
+ * equally).
+ *
+ * It then provides methods to move forwards and backwards in a book, loading
+ * sections as necessary so as to prevent pre-loading the entire book (which
+ * can be quite time consuming, and is unnecessary).
+ *
+ * Optional arguments may be supplied, including +pageNumbers+ (an array of
+ * elements whose textContent will be set to the current corresponding page
+ * number) and +chapterName+, whose textContent will be set to the current
+ * chapter name, if any.
+ *
+ * @class
+ */
 class PageHandler {
 
   /**
@@ -26,13 +120,13 @@ class PageHandler {
    */
   constructor(book, displayElements, pageNumbers, chapterName) {
     this.book = book;
+    this.displayElements = displayElements;
+    this.pageNumbers = pageNumbers;
+    this.chapterName = chapterName;
     this.canvas = document.getElementById('background');
     this.context = this.canvas.getContext('2d');
     this.width = this.canvas.width / 2;
     this.height = this.canvas.height;
-    this.displayElements = displayElements;
-    this.pageNumbers = pageNumbers;
-    this.chapterName = chapterName;
     this.collectorBase = this.displayElements[0];
     this.sections = [];
     this.sectionsByName = {};
@@ -64,6 +158,7 @@ class PageHandler {
       this.addSection(this.book.contents[i]);
     }
 
+    return this;
   }
 
   /**
@@ -73,145 +168,8 @@ class PageHandler {
    * @returns {Section}
    */
   addSection(contentRef) {
-
-    /**
-     *  The content collector. This uses the first displayElement as a template
-     *  to paginate the text. We call it from pageHandler.addSection to generate
-     *  callbacks that will return content for us when we need it.
-     */
-    let contentsLoader = () => {
-      /**
-       *
-       * @type {DOMParser}
-       */
-      let parser = new DOMParser(),
-        /**
-         *
-         * @returns {Node}
-         */
-        getNewCollector = () => {
-          /**
-           *
-           * @type {Node}
-           */
-          let contentCollector = self.collectorBase.cloneNode(false);
-          contentCollector.id = 'contentCollector';
-          contentCollector.style.marginTop = '10000px';
-          self.collectorBase.parentNode.appendChild(contentCollector);
-
-          return contentCollector;
-        };
-
-      return (contentChunk) => {
-        return (addPageCallback, finishCallback) => {
-          /**
-           *
-           * @type {Document}
-           */
-          let contentDoc = parser.parseFromString(contentChunk.content(), 'application/xml'),
-            /**
-             *
-             * @type {Element}
-             */
-            contentHeader = contentDoc.getElementsByTagName('head')[0],
-            /**
-             *
-             * @type {Element}
-             */
-            contentContainer = contentDoc.getElementsByTagName('body')[0],
-            /**
-             *
-             * @type {Node}
-             */
-            contentCollector = getNewCollector(),
-            /**
-             *
-             * @type {string}
-             */
-            styleContent = '',
-            /**
-             *
-             * @type {Element}
-             */
-            styleSheet = {};
-          for (let i = 0, l = contentHeader.children.length; i < l; i++) {
-            let elem = contentHeader.children[i];
-            if (elem.nodeName == 'link' && elem.rel == 'stylesheet') {
-              let href = elem.getAttribute('href'),
-                fileR = this.book.getFile(href);
-              styleContent = styleContent || '';
-              if (fileR) {
-                styleContent += fileR.content();
-              }
-            } else if (elem.nodeName == 'style') {
-              styleContent = styleContent || '';
-              styleContent += elem.textContent;
-            }
-          }
-
-          if (!document.getElementById('rePublishStyle')) {
-            styleSheet = document.createElement('style');
-            styleSheet.id = 'rePublishStyle';
-            document.getElementsByTagName('head')[0].appendChild(styleSheet);
-          } else {
-            styleSheet = document.getElementById('rePublishStyle');
-          }
-          styleSheet.textContent = styleContent;
-
-          /**
-           *
-           * @type {Paginator}
-           */
-          let paginator = new Paginator(contentContainer, contentCollector, styleContent);
-          paginator.addCallback('page', (page) => {
-            addPageCallback(page, contentHeader);
-          });
-
-          paginator.addCallback('finish', () => {
-            contentCollector.parentNode.removeChild(contentCollector);
-            finishCallback();
-          });
-
-          paginator.addCallback('image', (image) => {
-            let img;
-            if (image.getAttribute('src')) {
-              img = this.book.getFile(image.getAttribute('src'));
-            } else {
-              img = this.book.getFile(image.getAttribute('xlink:href'));
-            }
-
-            if (!img) {
-              return;
-            }
-
-            let imgContent = img.content(),
-              b64imgContent = Base64.encode(imgContent);
-
-            try {
-              let sz = getImageSize(imgContent);
-              if (sz) {
-                image.width = sz.width;
-                image.height = sz.height;
-              }
-            } catch (e) {
-              // console.log('error finding image size for ' + image.getAttribute('src'));
-            }
-
-            let imgType = img.name.substr(img.name.lastIndexOf('.') + 1, img.name.length),
-              dataUri = "data:image/" + imgType + ";base64," + b64imgContent;
-            image.setAttribute('src', dataUri);
-          });
-
-          paginator.paginate();
-        };
-      };
-    };
-
-    /**
-     *
-     * @type {Section}
-     */
-    let section = new Section(contentsLoader(contentRef));
+    let func = contentsLoader(this, contentRef),
+      section = new Section(func);
     this.sections.push(section);
     this.sectionsByName[contentRef.name] = this.sections.length - 1;
 
@@ -284,7 +242,6 @@ class PageHandler {
           this.context.fill();
         }
         this.context.closePath();
-
         break;
 
       case 'right':
@@ -391,7 +348,7 @@ class PageHandler {
   }
 
   /**
-   *
+   * Load/Display sections
    */
   display() {
     let loadSection = (n) => {
@@ -404,9 +361,7 @@ class PageHandler {
           this.accum += finishTime - startTime;
           this.naccum++;
           if (loaded) {
-            setTimeout(function () {
-              loadSection(n + 1)
-            }, 20);
+            setTimeout(() => loadSection(n + 1), 20);
           }
         });
       } else {
@@ -420,7 +375,7 @@ class PageHandler {
   }
 
   /**
-   *
+   * Go to a section by name
    * @param secName
    */
   goToSection(secName) {
@@ -437,7 +392,7 @@ class PageHandler {
   }
 
   /**
-   *
+   * Set the pages
    * @param {Array} dspElements
    */
   setPages(dspElements) {
@@ -455,9 +410,7 @@ class PageHandler {
    * @param {number} t
    */
   showLoadingIndicator(t) {
-    this.loadingIndicator = setTimeout(function () {
-      document.getElementById('spinner').style.display = 'block';
-    }, t);
+    this.loadingIndicator = setTimeout(() => document.getElementById('spinner').style.display = 'block', t);
   }
 
   /**

@@ -1,5 +1,7 @@
 /**
+ * ePub
  *
+ * @class
  */
 class ePub {
 
@@ -15,6 +17,7 @@ class ePub {
   }
 
   /**
+   * Open an ePub file
    *
    * @param {string} uri
    * @param {function} callback
@@ -38,12 +41,13 @@ class ePub {
 
     return this;
   }
-
 }
 
-
 /**
+ * OCF
  *
+ * @class
+ * @extends ePub
  */
 class OCF extends ePub {
 
@@ -76,7 +80,10 @@ class OCF extends ePub {
 
 
 /**
+ * OPF
  *
+ * @class
+ * @extends ePub
  */
 class OPF extends ePub {
 
@@ -99,6 +106,10 @@ class OPF extends ePub {
     return this;
   }
 
+  /**
+   *
+   * @returns {Array}
+   */
   get contents () {
     // Build the contents file. Needs some work.
     let itemRefs = this.spine.querySelectorAll('itemref'),
@@ -117,26 +128,46 @@ class OPF extends ePub {
     return contents;
   }
 
+  /**
+   *
+   * @returns {string}
+   */
   get creator () {
     return this.opf.querySelector('creator').textContent;
   }
 
+  /**
+   *
+   * @returns {Element}
+   */
   get manifest () {
     // Get the spine and manifest to make things easier.
     return this.opf.querySelector('manifest');
   }
 
+  /**
+   *
+   * @returns {Element}
+   */
   get spine () {
     // Get the spine and manifest to make things easier.
     return this.opf.querySelector('spine');
   }
 
+  /**
+   *
+   * @returns {NCX}
+   */
   get toc () {
     // Fetch the table of contents. This (i.e., the spec) is really confusing,
     // so it might be wrong. needs more investigation.
     return new NCX(this.spine.getAttribute('toc'), this);
   }
 
+  /**
+   *
+   * @returns {string}
+   */
   get title () {
     return this.opf.querySelector('title').textContent;
   }
@@ -167,11 +198,15 @@ class OPF extends ePub {
 
 
 /**
+ * NCX
  *
+ * @class
+ * @extends ePub
  */
 class NCX extends ePub {
 
   /**
+   *
    * @param {string} tocId
    * @param {OPF} opf
    * @returns {NCX}

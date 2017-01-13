@@ -1,10 +1,10 @@
 /**
- *
+ * Book Class
+ * @class
  */
 class Book {
 
   /**
-   *
    * Open an epub file and get it's contents
    *
    * @param {Archive} archive
@@ -20,17 +20,18 @@ class Book {
 
   /**
    *
-   * @returns {OPF.getFileByName}
+   * @param fileName
+   * @returns {*}
    */
-  getFile () {
-    return this.opf.getFileByName;
+  getFile(fileName) {
+    return this.opf.getFileByName(fileName);
   }
 
   /**
    *
    * @returns {string|*}
    */
-  get author () {
+  get author() {
     return this.opf.creator;
   }
 
@@ -38,23 +39,15 @@ class Book {
    *
    * @returns {Array|*}
    */
-  get contents () {
+  get contents() {
     return this.opf.contents;
-  }
-
-  /**
-   *
-   * @returns {{}|*}
-   */
-  get contentsByFile () {
-    return this.opf.contentsByFile;
   }
 
   /**
    *
    * @returns {string|*}
    */
-  get title () {
+  get title() {
     return this.opf.title;
   }
 
@@ -62,7 +55,7 @@ class Book {
    *
    * @returns {Array|*}
    */
-  get toc () {
+  get toc() {
     return this.opf.toc.contents;
   }
 
