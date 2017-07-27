@@ -25,12 +25,12 @@ class ePub {
    */
   open(uri, callback) {
     this.client.onreadystatechange = () => {
-      if (this.client.readyState == 4 && this.client.status == 200) {
+      if (this.client.readyState === 4 && this.client.status === 200) {
         let archive = new Zip.Archive(this.client.responseText);
         callback(archive);
-      } else if (this.client.readyState == 4 && this.client.status < 400 && this.client.status > 299) {
+      } else if (this.client.readyState === 4 && this.client.status < 400 && this.client.status > 299) {
         alert('I need to look elsewhere for the book, but I don\'t know how!');
-      } else if (this.client.readyState == 4) {
+      } else if (this.client.readyState === 4) {
         alert('There was an error reading the book! I need CORS support to read books from other domains! (result code was ' + this.client.readyState + '/' + this.client.status);
       }
     };

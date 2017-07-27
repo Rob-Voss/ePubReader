@@ -37,11 +37,10 @@
           container = document.getElementById('container'),
           background = document.getElementById('backgroundDiv'),
           canvas = document.getElementById('background'),
-          pages = document.getElementsByClassName('page');
-
-        var epubUrl,
+          pages = document.getElementsByClassName('page'),
+          epubUrl,
           ePubReader = new ePub();
-        if (epub.substr(0, 4) == 'http') {
+        if (epub.substr(0, 4) === 'http') {
           epubUrl = epub;
         } else {
           epubUrl = "epubs/" + epub;
@@ -112,9 +111,9 @@
         selector.style.display = 'none';
         container.style.display = 'block';
 
-        var showBook = function(archive) {
+        var showBook = function (archive) {
           var book = new Book(archive);
-            var pages,
+          var pages,
             te = document.getElementById('book_title'),
             ae = document.getElementById('author_heading'),
             lc = document.getElementById('leftcontent'),
@@ -125,7 +124,7 @@
           te.textContent = book.title;
           ae.textContent = book.author;
 
-          if (window.orientation == 0 || window.orientation == 180) {
+          if (window.orientation === 0 || window.orientation === 180) {
             pages = [lc];
           } else {
             pages = [lc, rc];
@@ -146,7 +145,7 @@
             chapter.textContent = book.toc[i].title;
 
             chapter.onclick = (secName) => {
-              return function() {
+              return function () {
                 pageHandler.goToSection(secName);
                 pageHandler.display();
                 contents.style.display = 'none';
@@ -179,7 +178,7 @@
 
           // Set up an orientation handler
           window.onorientationchange = function () {
-            if (window.orientation == 0 || window.orientation == 180) {
+            if (window.orientation === 0 || window.orientation === 180) {
               pageHandler.setPages([lc]);
             } else {
               pageHandler.setPages([lc, rc]);
